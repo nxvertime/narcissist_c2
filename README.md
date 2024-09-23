@@ -4,19 +4,18 @@
 
 ⚠️ **Disclaimer**: This project is for educational purposes only. It should not be used in any malicious way, and the authors take no responsibility for any misuse.
 
-## Features
+### Features & Upcoming Features
 
-- **Simultaneous Client Management**: Handle multiple clients at the same time, making it easy to control a fleet of connected machines.
-- **Broadcast Commands**: Send commands to all connected clients simultaneously for efficient execution.
-
-### Upcoming Features
-
-- **Credential Stealing**: Capture and extract credentials from compromised machines.
-- **Process Migration**: Move running processes between different contexts for stealth and persistence.
-- **Privilege Escalation**: Utilize drivers to gain elevated privileges on compromised systems.
-- **Network Analysis**: Perform deep network traffic analysis to understand target behavior.
-- **DLL Hijacking**: Exploit vulnerabilities to hijack legitimate DLLs for malicious execution.
-- **Persistence Mechanisms**: Implement methods to ensure the C2 agent remains on the system after reboot.
+| Feature                   | Status         |
+|---------------------------|----------------|
+| Simultaneous Client Management | ✅ Released  |
+| Broadcast Commands         | ✅ Released    |
+| Credential Stealing        | ❌ Unrealized  |
+| Process Migration          | ❌ Unrealized  |
+| Privilege Escalation       | ❌ Unrealized  |
+| Network Analysis           | ❌ Unrealized  |
+| DLL Hijacking              | ❌ Unrealized  |
+| Persistence Mechanisms     | ❌ Unrealized  |
 
 ## Installation
 
