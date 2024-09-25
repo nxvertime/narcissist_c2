@@ -29,8 +29,8 @@ func main() {
 		ClientIptCh: make(chan bool),
 	}
 
-	go components.HandleInput(inputChannels)
-	inputChannels.ClientIptCh <- false
+	go components.HandleInput()
+	//inputChannels.ClientIptCh <- false
 	// =======================================================
 
 	for {

