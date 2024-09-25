@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"narcissist_c2/server/components"
-	"narcissist_c2/server/structs"
 	"narcissist_c2/server/utils"
 	"net"
 	"sync"
@@ -24,11 +23,6 @@ func main() {
 
 	// MANAGE C2 CONSOLE ========================================
 
-	inputChannels := structs.Channels{
-		ServerIptCh: make(chan bool),
-		ClientIptCh: make(chan bool),
-	}
-
 	go components.HandleInput()
 	//inputChannels.ClientIptCh <- false
 	// =======================================================
@@ -41,7 +35,7 @@ func main() {
 
 		}
 
-		go components.HandleClient(conn, inputChannels)
+		go components.HandleClient(conn)
 
 	}
 

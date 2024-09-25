@@ -59,6 +59,10 @@ func interpreter(cmd string, mode *string, shellSessionFunc *func(string)) {
 	}
 
 	switch args[0] {
+	case "help":
+		help()
+	case "list":
+		listClients(Clients, true)
 	case "focus":
 		if len(args) < 2 {
 			fmt.Println("Usage: focus <client-id>")
@@ -80,66 +84,6 @@ func interpreter(cmd string, mode *string, shellSessionFunc *func(string)) {
 	default:
 		fmt.Println("Unknown command")
 	}
-}
-
-func createShellSession(clientID int, mode *string, shellSessionFunc *func(string)) {
-	client, exists := Clients[clientID]
-	if !exists || client.Conn == nil {
-		fmt.Println("Client not found")
-		return
-	}
-	// Optionally, you can print a message when entering shell mode
-	// fmt.Println("Entering shell session. Type 'defocus' to exit.")
-
-	// Start shell session on the client side
-	client.Conn.Write([]byte("{\"type\":\"shell_session\",\"args\":[\"true\"]}\n"))
-	go func() {
-		for data := range DataCh {
-			_, err := os.Stdout.Write(data)
-			if err != nil {
-				fmt.Println("Error writing to stdout:", err)
-
-			}
-
-		}
-
-	}()
-
-	// Start a goroutine to read from the client's connection
-	//	go func() {
-	//		fmt.Println("COPYING")
-	//		n, err := io.Copy(os.Stdout, MultiReader)
-	//		if err != nil {
-	//			fmt.Println("CANT COPY")
-	//			fmt.Println(err)
-	//		}
-	//
-	//		log.Printf("%d", n)
-	//	}()
-
-	go func() {
-		//fmt.Println("WAITING FOR INPUT")
-		for input := range IptDataCh {
-			//fmt.Println("GOT " + " FROM IPTDATACH")
-			write, err := client.Conn.Write([]byte(input + "\n"))
-			if err != nil {
-				fmt.Println(write)
-				print("Error writing to client:", err)
-				return
-			}
-		}
-	}()
-
-	// Return a function that sends commands to the client
-	//return func(input string) {
-	//	if input == "defocus" {
-	//		*mode = "normal"
-	//		*shellSessionFunc = nil
-	//		fmt.Println("Exiting shell session...")
-	//		return
-	//	}
-	//	client.Conn.Write([]byte(input + "\n"))
-	//}
 }
 
 func help() {
